@@ -10,8 +10,16 @@ cd "$RELEASE_DIR" && npm ci --omit=dev --no-audit --no-fund
 
 # 2. Database: create and seed the tables only if they don't exist yet.
 #    Later deploys leave the data alone.
-export PGPASSWORD=app
-PSQL="psql -h 127.0.0.1 -U app -d social -v ON_ERROR_STOP=1"
+#    Connection settings come from /etc/app/app.env (PGHOST, PGUSER, ...), which psql reads directly.
+set -a; . /etc/app/app.env; set +a
+if [ -n "${DB_SECRET_ARN:-}" ]; then
+  set +x   # don't print the password into the deploy log
+  PGPASSWORD=$(/snap/bin/aws secretsmanager get-secret-value --secret-id "$DB_SECRET_ARN" \
+    --query SecretString --output text | jq -r .password)
+  export PGPASSWORD
+  set -x
+fi
+PSQL="psql -v ON_ERROR_STOP=1"
 if [ "$($PSQL -tAc "SELECT to_regclass('public.users') IS NOT NULL")" != "t" ]; then
   $PSQL -f db/schema.sql
   $PSQL -f db/seed.sql

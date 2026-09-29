@@ -9,6 +9,7 @@ const VUS = Number(__ENV.VUS || 10);
 const RAMP = __ENV.RAMP || '1m';
 const HOLD = __ENV.HOLD || '3m';
 const NUM_USERS = 50000;
+const OUT_DIR = __ENV.OUT_DIR || 'results';
 
 export const options = {
   scenarios: {
@@ -89,7 +90,7 @@ export function handleSummary(data) {
   ];
   return {
     stdout: textSummary(data, { indent: ' ', enableColors: true }),
-    [`results/vus-${VUS}.json`]: JSON.stringify(data, null, 2),
-    [`results/vus-${VUS}.row.csv`]: row.join(',') + '\n',
+    [`${OUT_DIR}/vus-${VUS}.json`]: JSON.stringify(data, null, 2),
+    [`${OUT_DIR}/vus-${VUS}.row.csv`]: row.join(',') + '\n',
   };
 }

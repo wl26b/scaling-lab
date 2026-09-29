@@ -7,8 +7,9 @@ After=network.target postgresql.service
 WorkingDirectory=/opt/app/current
 ExecStart=/usr/bin/node server.js
 Environment=NODE_ENV=production
-Environment=DATABASE_URL=postgres://app:app@127.0.0.1:5432/social
 Environment=POOL_SIZE=10
+# Where the database is: written by the instance's first-boot script (differs per stage)
+EnvironmentFile=/etc/app/app.env
 Restart=always
 User=www-data
 LimitNOFILE=65535

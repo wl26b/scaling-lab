@@ -1,5 +1,7 @@
 import cluster from 'node:cluster';
+import fs from 'node:fs';
 import os from 'node:os';
+import { GetSecretValueCommand, SecretsManagerClient } from '@aws-sdk/client-secrets-manager';
 import Fastify from 'fastify';
 import pg from 'pg';
 
@@ -21,9 +23,25 @@ if (cluster.isPrimary && WORKERS > 1) {
   start();
 }
 
+// The DB password, when it lives in AWS Secrets Manager (stage 2+). Cached for 5 minutes, so a
+// rotated password is picked up by new connections without restarting the app.
+let secretCache = null;
+async function passwordFromSecretsManager() {
+  if (secretCache && Date.now() - secretCache.at < 5 * 60_000) return secretCache.password;
+  const sm = new SecretsManagerClient({});
+  const res = await sm.send(new GetSecretValueCommand({ SecretId: process.env.DB_SECRET_ARN }));
+  secretCache = { password: JSON.parse(res.SecretString).password, at: Date.now() };
+  return secretCache.password;
+}
+
 async function start() {
+  // Where the database is comes from the standard Postgres env vars (PGHOST, PGUSER, PGDATABASE, ...),
+  // set per environment in /etc/app/app.env. The same code runs against local Postgres or RDS.
   const pool = new pg.Pool({
-    connectionString: process.env.DATABASE_URL ?? 'postgres://app:app@127.0.0.1:5432/social',
+    // pg calls this function for every new connection.
+    password: process.env.DB_SECRET_ARN ? passwordFromSecretsManager : undefined,
+    // Verify the server's TLS certificate against this CA (RDS); otherwise PGSSLMODE decides.
+    ssl: process.env.PGSSLROOTCERT ? { ca: fs.readFileSync(process.env.PGSSLROOTCERT, 'utf8') } : undefined,
     max: POOL_SIZE,
   });
 

@@ -5,11 +5,12 @@
 #   2. upload it to the S3 artifact bucket
 #   3. tell the server (via Session Manager) to download it and run deploy/install.sh
 #
-# Usage: ./scripts/deploy.sh
+# Usage: ./scripts/deploy.sh [stage]      e.g. ./scripts/deploy.sh stage2   (default: stage2)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-TF="terraform -chdir=infra/stage1"
+STAGE=${1:-stage2}
+TF="terraform -chdir=infra/$STAGE"
 BUCKET=$($TF output -raw artifact_bucket)
 INSTANCE=$($TF output -raw app_instance_id)
 VERSION=$(date -u +%Y%m%d-%H%M%S)

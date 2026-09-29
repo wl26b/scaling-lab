@@ -1,0 +1,37 @@
+#!/bin/bash
+# First-boot setup for the load generator: k6 + the test scripts.
+set -euxo pipefail
+export DEBIAN_FRONTEND=noninteractive
+
+# k6 from Grafana's apt repository
+curl -fsSL https://dl.k6.io/key.gpg | gpg --dearmor -o /usr/share/keyrings/k6-archive-keyring.gpg
+echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" \
+  > /etc/apt/sources.list.d/k6.list
+apt-get update
+apt-get install -y k6 htop tmux
+snap install aws-cli --classic   # to upload results to S3
+
+# Thousands of VUs = thousands of open sockets and files.
+cat > /etc/security/limits.d/k6.conf <<'LIM'
+* soft nofile 250000
+* hard nofile 250000
+LIM
+cat > /etc/sysctl.d/99-k6.conf <<'SYS'
+net.ipv4.ip_local_port_range = 1024 65535
+net.ipv4.tcp_tw_reuse = 1
+SYS
+sysctl --system
+
+# Test scripts, and which server to hit
+mkdir -p /opt/loadtest/results
+echo '${social_js}'     | base64 -d > /opt/loadtest/social.js
+echo '${run_steps_sh}'  | base64 -d > /opt/loadtest/run-steps.sh
+echo '${target_url}' > /opt/loadtest/target
+echo '${results_bucket}' > /opt/loadtest/bucket
+echo '${region}' > /opt/loadtest/region
+chmod +x /opt/loadtest/run-steps.sh
+chmod -R 777 /opt/loadtest   # the Session Manager user (ssm-user) needs to write results
+
+# The app may not be deployed yet; that's fine, the test only needs it later.
+curl -fsS "${target_url}/health" || echo "note: app not reachable yet (run scripts/deploy.sh)"
+echo "SETUP COMPLETE"

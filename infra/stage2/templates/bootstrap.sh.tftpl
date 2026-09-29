@@ -1,0 +1,41 @@
+#!/bin/bash
+# First boot of the app instance (stage 2): nginx + Node. No Postgres server: the database is RDS.
+# The app itself arrives later via ./scripts/deploy.sh.
+# Runs once as root via cloud-init. Output: /var/log/cloud-init-output.log
+set -euxo pipefail
+export DEBIAN_FRONTEND=noninteractive
+
+# ── Packages ────────────────────────────────────────────────────────────────
+# postgresql-client: just `psql`, used by deploys to create and seed the tables.
+apt-get update
+apt-get install -y ca-certificates curl jq nginx postgresql-client htop sysstat
+curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
+apt-get install -y nodejs
+snap install aws-cli --classic   # deploys download releases from S3
+
+# ── Database connection settings (filled in by Terraform) ───────────────────
+# Standard Postgres variables: both `psql` and the Node `pg` library read them.
+# The password is not here: it is fetched from Secrets Manager (DB_SECRET_ARN) when needed.
+mkdir -p /etc/app
+cat > /etc/app/app.env <<'ENV'
+PGHOST=${db_host}
+PGPORT=5432
+PGDATABASE=${db_name}
+PGUSER=${db_user}
+PGSSLMODE=verify-full
+PGSSLROOTCERT=/etc/ssl/certs/rds-global-bundle.pem
+DB_SECRET_ARN=${db_secret_arn}
+AWS_REGION=${region}
+ENV
+
+# RDS requires TLS; this is AWS's certificate authority bundle, so we can verify we're talking to the real RDS.
+curl -fsSL https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem -o /etc/ssl/certs/rds-global-bundle.pem
+
+# ── nginx: machine-wide limits; the site config comes with each deploy ──────
+rm -f /etc/nginx/sites-enabled/default
+sed -i 's/worker_connections [0-9]*/worker_connections 8192/' /etc/nginx/nginx.conf
+sed -i '1i worker_rlimit_nofile 65535;' /etc/nginx/nginx.conf
+systemctl reload nginx
+
+mkdir -p /opt/app/releases
+echo "BOOTSTRAP COMPLETE: ready for ./scripts/deploy.sh"

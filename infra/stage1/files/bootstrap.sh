@@ -30,6 +30,17 @@ CREATE ROLE app LOGIN PASSWORD 'app';
 CREATE DATABASE social OWNER app;
 SQL
 
+# Where the app finds the database: standard Postgres env vars, read by both psql and Node's pg.
+mkdir -p /etc/app
+cat > /etc/app/app.env <<'ENV'
+PGHOST=127.0.0.1
+PGPORT=5432
+PGDATABASE=social
+PGUSER=app
+PGPASSWORD=app
+PGSSLMODE=disable
+ENV
+
 # ── nginx: machine-wide limits; the site config comes with each deploy ──────
 rm -f /etc/nginx/sites-enabled/default
 sed -i 's/worker_connections [0-9]*/worker_connections 8192/' /etc/nginx/nginx.conf
