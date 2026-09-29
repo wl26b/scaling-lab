@@ -1,0 +1,17 @@
+# systemd service for the Node app. Installed to /etc/systemd/system/app.service by deploy/install.sh.
+[Unit]
+Description=scaling-lab app
+After=network.target postgresql.service
+
+[Service]
+WorkingDirectory=/opt/app/current
+ExecStart=/usr/bin/node server.js
+Environment=NODE_ENV=production
+Environment=DATABASE_URL=postgres://app:app@127.0.0.1:5432/social
+Environment=POOL_SIZE=10
+Restart=always
+User=www-data
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target

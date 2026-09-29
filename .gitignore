@@ -1,0 +1,10 @@
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+crash.log
+# Node
+node_modules/
+# Local k6 output (copied results live in results/)
+loadtest/results/

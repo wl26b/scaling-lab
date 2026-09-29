@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>scaling-lab</title>
+<style>
+  :root { --bg:#f7f7f5; --card:#fff; --text:#1d1d1b; --muted:#6b6b66; --line:#e4e4df; --accent:#1d9bf0; --like:#e0245e; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.45 system-ui, -apple-system, sans-serif; }
+  main { max-width:600px; margin:0 auto; padding:16px; }
+  header { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px; }
+  h1 { font-size:20px; margin:0; }
+  .who { display:flex; gap:6px; align-items:center; color:var(--muted); }
+  .who input { width:90px; }
+  input, textarea, button { font:inherit; }
+  input, textarea { border:1px solid var(--line); border-radius:8px; padding:6px 8px; background:#fff; }
+  button { border:0; border-radius:999px; padding:6px 14px; background:var(--accent); color:#fff; cursor:pointer; }
+  button:disabled { opacity:.5; cursor:default; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px 14px; margin-bottom:10px; }
+  .compose textarea { width:100%; min-height:64px; resize:vertical; border:0; padding:0; outline:none; }
+  .compose .row { display:flex; justify-content:space-between; align-items:center; margin-top:8px; color:var(--muted); font-size:13px; }
+  .meta { color:var(--muted); font-size:13px; }
+  .meta b { color:var(--text); }
+  .body { margin:4px 0 8px; word-wrap:break-word; }
+  .like { background:none; color:var(--muted); padding:2px 0; }
+  .like.on { color:var(--like); }
+  .more { display:block; margin:16px auto; background:none; color:var(--accent); }
+  .err { color:var(--like); font-size:13px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>scaling-lab</h1>
+    <label class="who">acting as user #<input id="uid" type="number" min="1" max="50000"></label>
+  </header>
+
+  <form class="card compose" id="compose">
+    <textarea id="text" maxlength="280" placeholder="What's happening?"></textarea>
+    <div class="row"><span id="count">0 / 280</span><button id="postBtn" disabled>Post</button></div>
+  </form>
+
+  <div id="feed"></div>
+  <button class="more" id="more" hidden>Load more</button>
+  <p class="err" id="err" hidden></p>
+</main>
+
+<script>
+// No real login: the API trusts the x-user-id header, so "logging in" is just picking a number.
+const $ = (id) => document.getElementById(id);
+const uidInput = $('uid');
+uidInput.value = localStorage.getItem('uid') || 1;
+uidInput.onchange = () => { localStorage.setItem('uid', uidInput.value); reload(); };
+
+let next = null;
+
+async function api(path, opts = {}) {
+  const res = await fetch(path, {
+    ...opts,
+    headers: {
+      'x-user-id': uidInput.value,
+      // Only declare JSON when there is a body: the API rejects an empty body labelled as JSON.
+      ...(opts.body ? { 'content-type': 'application/json' } : {}),
+    },
+  });
+  if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
+  return res.json();
+}
+
+function showError(e) { $('err').textContent = e.message; $('err').hidden = false; }
+
+function renderPost(p) {
+  const el = document.createElement('article');
+  el.className = 'card';
+  const when = new Date(p.created_at).toLocaleString();
+  el.innerHTML = `<div class="meta"><b></b> · #<span class="id"></span> · ${when}</div><div class="body"></div>`;
+  el.querySelector('b').textContent = '@' + p.username;
+  el.querySelector('.id').textContent = p.id;
+  el.querySelector('.body').textContent = p.body;
+
+  const btn = document.createElement('button');
+  btn.className = 'like' + (p.liked ? ' on' : ''); // the API says whether *you* liked it
+  let count = p.like_count;
+  const draw = () => { btn.textContent = (btn.classList.contains('on') ? '♥ ' : '♡ ') + count; };
+  draw();
+  btn.onclick = async () => {
+    try {
+      const r = await api(`/api/posts/${p.id}/like`, { method: 'POST' });
+      if (r.changed) count++;
+      btn.classList.add('on');
+      draw();
+    } catch (e) { showError(e); }
+  };
+  el.appendChild(btn);
+  return el;
+}
+
+async function loadFeed() {
+  try {
+    const data = await api('/api/feed' + (next ? `?before=${next}` : ''));
+    data.posts.forEach((p) => $('feed').appendChild(renderPost(p)));
+    next = data.next;
+    $('more').hidden = !next;
+  } catch (e) { showError(e); }
+}
+
+function reload() { next = null; $('feed').innerHTML = ''; loadFeed(); }
+
+$('text').oninput = () => {
+  $('count').textContent = `${$('text').value.length} / 280`;
+  $('postBtn').disabled = !$('text').value.trim();
+};
+$('compose').onsubmit = async (e) => {
+  e.preventDefault();
+  try {
+    await api('/api/posts', { method: 'POST', body: JSON.stringify({ body: $('text').value }) });
+    $('text').value = '';
+    $('text').oninput();
+    reload();
+  } catch (err) { showError(err); }
+};
+$('more').onclick = loadFeed;
+
+loadFeed();
+</script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+# App instance CPU per program, per minute (UTC), from pidstat sampled every 10 s.
+# % of ONE core; the instance has 2 cores, so 200% = fully busy.
+# Steps: 7,500 users 09:41-09:45 | 10,000 09:46-09:50 | 15,000 09:51-09:55 | 20,000 09:56 (k6 killed ~09:58)
+09:42 nginx=12% node=47% postgres=67%
+09:43 nginx=12% node=49% postgres=70%
+09:44 nginx=12% node=48% postgres=70%
+09:47 nginx=14% node=58% postgres=86%
+09:48 nginx=15% node=61% postgres=93%
+09:49 nginx=15% node=61% postgres=92%
+09:52 nginx=21% node=76% postgres=94%
+09:53 nginx=22% node=79% postgres=96%
+09:54 nginx=23% node=79% postgres=96%
+09:57 nginx=22% node=76% postgres=93%
