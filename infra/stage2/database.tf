@@ -25,6 +25,24 @@ resource "aws_vpc_security_group_ingress_rule" "db_from_app" {
   ip_protocol                  = "tcp"
 }
 
+# Postgres settings. RDS doesn't let you edit postgresql.conf; you set values in a parameter group.
+resource "aws_db_parameter_group" "main" {
+  name   = "scaling-lab-pg16"
+  family = "postgres16"
+
+  # Log every statement that takes longer than 200 ms *inside Postgres*, and any lock wait over 1 s.
+  # Cheap (only slow statements are logged) and it's how we proved the stage 2 slow tail came from
+  # the database itself. Read with: aws rds download-db-log-file-portion
+  parameter {
+    name  = "log_min_duration_statement"
+    value = "200"
+  }
+  parameter {
+    name  = "log_lock_waits"
+    value = "1"
+  }
+}
+
 resource "aws_db_instance" "main" {
   identifier     = "scaling-lab"
   engine         = "postgres"
@@ -40,6 +58,7 @@ resource "aws_db_instance" "main" {
   storage_type      = "gp3"
   storage_encrypted = true
 
+  parameter_group_name   = aws_db_parameter_group.main.name
   db_subnet_group_name   = aws_db_subnet_group.main.name
   vpc_security_group_ids = [aws_security_group.db.id]
   publicly_accessible    = false # no public IP; only reachable inside the VPC

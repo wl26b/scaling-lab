@@ -26,6 +26,12 @@ The AWS account is on the Free plan, with a budget alarm (`infra/budget/`) at $1
 3. **Bring the stage up.** Give the user the command and say what it creates and roughly what it costs per hour:
    `terraform -chdir=infra/stageN apply`. Include `-var loadgen_enabled=false` when this session needs no load test.
 4. **Deploy the app** after apply: `./scripts/deploy.sh stageN`.
+5. **Stages with RDS (2+): restart the database before measuring.** The first deploy seeds 2.5M rows, which pushes the 1 GB `db.t4g.micro` into swap, and swap causes 10–30 s requests (proven in `results/stage2/README.md`). Restart, then load test:
+   ```bash
+   aws rds reboot-db-instance --db-instance-identifier scaling-lab
+   aws rds wait db-instance-available --db-instance-identifier scaling-lab
+   ```
+   Do the same after any other bulk load or re-seed.
 
 ## End
 
